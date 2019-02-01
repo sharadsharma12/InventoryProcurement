@@ -1,0 +1,281 @@
+******************************************Inventory procurement strategy*********************************************************************
+*********************************************************************************************************************************************
+*********************************************************************************************************************************************
+***********					Analysis Using Hadoop(HIVE, SQOOP), RDBMS Skillsm      		     *********************
+	   *************************************************************************************************************
+
+
+
+#RDBMS Query
+#Table Creation And Data Insertion
+
+#Creating Table user Details to store User Information in RDBMS
+---------------------------------------------------------------
+create table user_details(
+id int,
+password varchar(30),
+date datetime,
+transaction_amt int,
+primary key(id)
+);
+
+#Inserting data into user details tables
+-----------------------------------------------------------
+insert into user_details values (123,'pwd123','2018-10-20',1000);
+insert into user_details values (111,'pwd111','2018-11-20',2000);
+insert into user_details values (222,'pwd222','2018-12-20',3000);
+insert into user_details values (333,'pwd333','2019-11-20',4000);
+insert into user_details values (444,'pwd444','2019-11-20',5000);
+
+
+#Creating table order details to store order data
+---------------------------------------------------------
+create table order_details(
+id int,
+order_no int,
+amount int,
+qty int,
+order_date datetime,
+status varchar(20),
+foreign key(id) references user_details(id)
+);
+
+#Inserting data into order details tables
+-----------------------------------------------------------
+insert into order_details values (123,1123,600,1,'2018-10-30','Purchased');
+insert into order_details values (123,1125,400,1,'2018-10-30','Purchased');
+insert into order_details values (123,1129,1000,10,'2018-10-30','Pending');
+
+#Creating table product to store product information
+----------------------------------------------------------
+create table product(
+product_id int,
+product_type varchar(30),
+product_name varchar(30),
+product_brand varchar(30),
+product_availability varchar(2)
+);
+
+
+#Inserting data into product details tables
+------------------------------------------------------------
+insert into product values (1122,'Clothes','Jeans','Levis','Y');
+insert into product values (1133,'Dairy','Chocolate','Cadbury','Y');
+
+
+#Creating table to store payment information
+-------------------------------------------------------
+create table payment_details(
+id int,
+order_no int,
+payment_no varchar(30),
+total_amount int,
+payment_status varchar(30),
+payment_date date,
+foreign key(id) references user_details(id),
+foreign key(order_no) references order_details(order_no)
+);
+
+
+#Inserting data into payment tables
+------------------------------------------------------------
+insert into payment_details values(123,1123,'Aw123456',1000,'Confirmed','2018-10-30');
+
+
+#Creating table to store order history (for historical data)
+----------------------------------------------------------------------
+create table order_history(
+order_no int,
+id int,
+product_id int,
+qty int,
+status varchar(30),
+order_date datetime
+);
+
+
+#Inserting data into historical data or pre processed data
+----------------------------------------------------------------
+insert into order_history values(1123,123,1122,4,'Completed','2019-01-10');
+insert into order_history values(1133,123,1133,2,'Completed','2019-01-10');
+insert into order_history values(1133,123,1133,2,'Incomplete','2019-01-10');
+
+
+#Creating table to store User other details like address and all
+----------------------------------------------------------------------
+create table user_other_details(
+id int,
+address varchar(100),
+city varchar(50),
+zip int,
+foreign key(id) references user_details(id)
+);
+
+#Inserting data into other details table
+--------------------------------------------------------------------------
+insert into user_other_details values(123,'Brahmand','Thane','400607');
+
+
+
+
+
+
+
+
+
+
+**********************************************************************************************************************************************************
+
+#Sqoop Imports
+
+#Hadoop Processing Starts Here
+-------------------------------------------------------------------
+#Script to find the required date which can be used for automation while importing Data from RDBMS (Useful while Sqoop Import)
+*****************************************************************************************************************************
+
+
+Today=$(date)
+YesterDay="$(date -d "1 day ago"+%Y-%m-%d)" 
+
+YestDay="$(date -d"1 day ago"'+%d')"
+
+YestMon="$(date -d "1 day ago"'+%m')"
+
+YestYear="$(date -d "1 day ago"'+%Y')"
+
+
+#Importing data into HDFS using Sqoop from RDBMS
+-----------------------------------------------------------
+
+#User Details
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select id,password,date,transaction_amt from user_details where date>=to_date("$YesterDay",'yyyy-MM-dd') and \$CONDITIONS" \
+--target-dir /home/ecom/userdata/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+#Order Data
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select id,order_no,amount,qty,order_date,status from order_details where order_date>=to_date("$YesterDay",'yyyy-MM-dd') and \$CONDITIONS" \
+--target-dir /home/ecom/orderdata/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+
+#Product Details
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select product_id,product_type,product_name,product_brand,product_availability from product where product_id is not null and \$CONDITIONS" \
+--target-dir /home/ecom/productdetails/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+
+#Payment Details
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select id,order_no,payment_no,total_amount,payment_status,payment_date from payment_details where payment_date>=to_date("$YesterDay",'yyyy-MM-dd') and \$CONDITIONS" \
+--target-dir /home/ecom/paymentdetails/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+#Order History
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select order_no,id,product_id,qty,status,order_date from order_history where order_date>=to_date("$YesterDay",'yyyy-MM-dd') and \$CONDITIONS" \
+--target-dir /home/ecom/orderhistory/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+
+#User Other Details
+sqoop import --connect "jdbc:postgresql://localhost:5444/ecom" --username "ecommerce" --password "Password@12" \
+--query "select id,address, city, zip from user_other_details where zip is not null and \$CONDITIONS" \
+--target-dir /home/ecom/useritherdetails/$YestYear/$YestMon/$YestDay -m 1 --field-terminated-by '~';
+
+
+
+
+
+
+#Creating EXTERNAL HIVE Tables with all imported data
+*******************************************************************************************************************************************************
+
+#USER DETAILS
+---------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS user_details(`id` int, `password` string, `date` string, `transaction_amt` int
+)
+COMMENT 'USER DETAILS DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/userdata/$YestYear/$YestMon/$YestDay'
+
+
+#ORDER DETAILS
+------------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS order_details(`id` int, `order_no` int, `amount` int, `qty` int,`order_date` string, `status` string
+)
+COMMENT 'ORDER DETAILS DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/orderdata/$YestYear/$YestMon/$YestDay'
+
+
+
+#PRODUCT DETAILS
+--------------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS product(`product_id` int, `product_type` string, `product_name` string, `product_brand` string,`product_availability` string
+)
+COMMENT 'PRODUCT DETAILS DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/productdetails/$YestYear/$YestMon/$YestDay'
+
+
+
+#PAYMENT DETAILS
+-----------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS payment_details(`id` int, `order_no` string, `payment_no` string, `total_amount` int,`payment_status` string,`payment_date` string
+)
+COMMENT 'PAYMENT DETAILS DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/paymentdetails/$YestYear/$YestMon/$YestDay'
+
+
+#ORDER HISTORY
+--------------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS order_history(`order_no` int, `id` int, `product_id` string, `qty` int,`status` string,`order_date` string
+)
+COMMENT 'ORDER HISTORY DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/orderhistory/$YestYear/$YestMon/$YestDay'
+
+
+#OTHER USER DETAILS
+----------------------------
+CREATE EXTERNAL TABLE IF NOT EXISTS user_other_details(`id` int, `address` string, `city` string, `zip` int
+)
+COMMENT 'OTHER USER DATA'
+ROW FORMAT DELIMITED FIELDS TERMINATED BY '~'
+STORED AS TEXTFILE location '/home/ecom/userotherdetails/$YestYear/$YestMon/$YestDay'
+
+
+
+
+
+
+
+
+#FINAL ANALYSIS TO GET THE FINAL REQUIRED DATA
+************************************************************************************************************************************************
+
+#Basic Analysis of total sum of produt sold in a quarter
+-------------------------------------------------------------
+create table final_data as 
+select a.id, collect_set(b.order_no),sum(b.amountkbaty) as tamount,
+collect_set(b.order_date),collect_set(c.product_id), collect_set(d.product_type),
+collect_set(d.product_name),collect_set(d.product_brand),e.address, e.city,e.zip from 
+user_details a inner join order_details b on a.id=b.id left join order_history c on 
+b.order_no=c.order_no left join product d on c.product_id=d.product_id left join user_other_details e 
+on a.id=e.id where b.status='Purchased' and b.order_date>='2018-10-01' and b.order_date<'2018-12-31' 
+group by a.id,e.address, e.city,e.zip; 
+
+
+#NOW BASE TABLE final_data can be used for various analysis like :
+------------------------------------------------------------------
+
+#To get the city Wise sale
+--------------------------------
+select sum(tamount),city from final_data group by city;
+
+#To get ZIP Code wise sale:
+---------------------------------
+select sum(tamount),zip from final_data group by zip;
+
+
+For Further Analysis HIVE UDF, UDAF can also be used
+
